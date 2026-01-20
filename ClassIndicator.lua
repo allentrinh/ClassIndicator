@@ -187,6 +187,11 @@ function ClassIndicator:AddTextureToNameplateByUnitId(unitId)
         return
     end
 
+    -- Don't add class icon to personal resource display
+    if UnitIsUnit(unitId, "player") then
+        return
+    end
+
     local unitGUID = UnitGUID(unitId)
     local isFriend = UnitIsFriend("player", unitId)
 
