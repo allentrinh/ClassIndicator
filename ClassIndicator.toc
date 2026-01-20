@@ -1,4 +1,4 @@
-## Interface: 100200
+## Interface: 120001
 ## Title: Class Indicator
 ## Author: Allen Trinh
 ## Version: 1.0
