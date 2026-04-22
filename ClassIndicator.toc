@@ -1,7 +1,7 @@
-## Interface: 120001, 110207, 120000
+## Interface: 120005, 120001, 110207, 120000
 ## Title: Class Indicator
 ## Author: Allen Trinh
-## Version: 1.1
+## Version: 1.0
 ## Notes: Appends class icons to friendly player nameplates
 ## SavedVariables: ClassIndicatorDB
 
