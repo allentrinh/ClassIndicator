@@ -258,10 +258,11 @@ function ClassIndicator:AddTextureToNameplate(unitGUID, unitId, nameplate, iconT
     local iconTexture = nameplate:CreateTexture(nil, "OVERLAY")
     iconTexture.__unitId = unitId
 
-    local iconSize = self.db.global.size
-    local anchor = self.db.global.position.anchor
-    local horizontal = self.db.global.position.horizontal
-    local vertical = self.db.global.position.vertical
+    local db = self.db.global
+    local iconSize = db.size
+    local anchor = db.position.anchor
+    local horizontal = db.position.horizontal
+    local vertical = db.position.vertical
     local isShown = self:GetIsTextureShown()
 
     iconTexture:SetTexture(iconTexturePath)
@@ -310,17 +311,21 @@ end
 -- Refreshes textures when an option is changed
 -- @return (void)
 function ClassIndicator:RefreshTextures()
+    local db = self.db.global
+
     for _, iconTexture in pairs(self.iconTextures) do
         local nameplate = C_NamePlate.GetNamePlateForUnit(iconTexture.__unitId, false)
-        if nameplate then
-            local iconSize = self.db.global.size
-            local anchor = self.db.global.position.anchor
-            local horizontal = self.db.global.position.horizontal
-            local vertical = self.db.global.position.vertical
-
-            iconTexture:SetSize(iconSize, iconSize)
-            iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
+        if not nameplate then
+            return
         end
+
+        local iconSize = db.size
+        local anchor = db.position.anchor
+        local horizontal = db.position.horizontal
+        local vertical = db.position.vertical
+
+        iconTexture:SetSize(iconSize, iconSize)
+        iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
     end
 end
 
