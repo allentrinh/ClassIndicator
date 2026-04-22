@@ -277,8 +277,12 @@ end
 -- Destroys all textures
 -- @return (void)
 function ClassIndicator:DestroyAllTextures()
-    self:HideAllTextures()
-    table.wipe(self.iconTextures)
+    for unitId, iconTexture in pairs(self.iconTextures) do
+        iconTexture:Hide()
+        iconTexture:SetTexture(nil)
+        iconTexture:ClearAllPoints()
+        self.iconTextures[unitId] = nil
+    end
 end
 
 -- Destroys the frame
