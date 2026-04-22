@@ -193,8 +193,11 @@ function ClassIndicator:AddTextureToNameplateByUnitId(unitId)
     end
 
     local unitGUID = UnitGUID(unitId)
-    local isFriend = UnitIsFriend("player", unitId)
+    if not unitGUID then
+        return
+    end
 
+    local isFriend = UnitIsFriend("player", unitId)
     if not isFriend then
         return
     end
@@ -207,7 +210,7 @@ function ClassIndicator:AddTextureToNameplateByUnitId(unitId)
     local localizedClass, englishClass, localizedRace, englishRace, sex, name, realm = GetPlayerInfoByGUID(unitGUID)
     if englishClass then
         local iconTexturePath = CLASS_ICONS_PATH .. englishClass .. ".tga"
-        self:AddTextureToNameplate(unitId, nameplate, iconTexturePath)
+        self:AddTextureToNameplate(unitGUID, unitId, nameplate, iconTexturePath)
     end
 end
 
@@ -220,8 +223,13 @@ function ClassIndicator:RemoveTextureFromNameplateByUnitId(unitId)
         return
     end
 
+    local unitGUID = UnitGUID(unitId)
+    if not unitGUID then
+        return
+    end
+
     -- Nothing to remove
-    local iconTexture = self.iconTextures[unitId]
+    local iconTexture = self.iconTextures[unitGUID]
     if iconTexture == nil then
         return
     end
@@ -229,7 +237,7 @@ function ClassIndicator:RemoveTextureFromNameplateByUnitId(unitId)
     iconTexture:Hide()
     iconTexture:SetTexture(nil)
     iconTexture:ClearAllPoints()
-    self.iconTextures[unitId] = nil
+    self.iconTextures[unitGUID] = nil
 end
 
 ---
@@ -238,16 +246,18 @@ end
 -- @param nameplate (string) the nameplate id
 -- @param iconTexturePath (string) the icon texture path
 -- @return (void)
-function ClassIndicator:AddTextureToNameplate(unitId, nameplate, iconTexturePath)
-    if self.iconTextures[unitId] then
-        local existingTexture = self.iconTextures[unitId]
+function ClassIndicator:AddTextureToNameplate(unitGUID, unitId, nameplate, iconTexturePath)
+    if self.iconTextures[unitGUID] then
+        local existingTexture = self.iconTextures[unitGUID]
         existingTexture:Hide()
         existingTexture:SetTexture(nil)
         existingTexture:ClearAllPoints()
-        self.iconTextures[unitId] = nil
+        self.iconTextures[unitGUID] = nil
     end
 
     local iconTexture = nameplate:CreateTexture(nil, "OVERLAY")
+    iconTexture.__unitId = unitId
+
     local iconSize = self.db.global.size
     local anchor = self.db.global.position.anchor
     local horizontal = self.db.global.position.horizontal
@@ -259,7 +269,7 @@ function ClassIndicator:AddTextureToNameplate(unitId, nameplate, iconTexturePath
     iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
     iconTexture:SetShown(isShown)
 
-    self.iconTextures[unitId] = iconTexture
+    self.iconTextures[unitGUID] = iconTexture
 end
 
 ---
@@ -300,15 +310,17 @@ end
 -- Refreshes textures when an option is changed
 -- @return (void)
 function ClassIndicator:RefreshTextures()
-    for unitId, iconTexture in pairs(self.iconTextures) do
-        local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
-        local iconSize = self.db.global.size
-        local anchor = self.db.global.position.anchor
-        local horizontal = self.db.global.position.horizontal
-        local vertical = self.db.global.position.vertical
+    for _, iconTexture in pairs(self.iconTextures) do
+        local nameplate = C_NamePlate.GetNamePlateForUnit(iconTexture.__unitId, false)
+        if nameplate then
+            local iconSize = self.db.global.size
+            local anchor = self.db.global.position.anchor
+            local horizontal = self.db.global.position.horizontal
+            local vertical = self.db.global.position.vertical
 
-        iconTexture:SetSize(iconSize, iconSize)
-        iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
+            iconTexture:SetSize(iconSize, iconSize)
+            iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
+        end
     end
 end
 
