@@ -200,6 +200,10 @@ function ClassIndicator:AddTextureToNameplateByUnitId(unitId)
     end
 
     local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
+    if not nameplate then
+        return
+    end
+
     local localizedClass, englishClass, localizedRace, englishRace, sex, name, realm = GetPlayerInfoByGUID(unitGUID)
     if englishClass then
         local iconTexturePath = CLASS_ICONS_PATH .. englishClass .. ".tga"
@@ -216,19 +220,15 @@ function ClassIndicator:RemoveTextureFromNameplateByUnitId(unitId)
         return
     end
 
-    -- We don't recognize this unit for some reason, exit early
-    if self.iconTextures[unitId] == nil then
+    -- Nothing to remove
+    local iconTexture = self.iconTextures[unitId]
+    if iconTexture == nil then
         return
     end
 
-    -- Player still exists, leave the texture
-    local unitGUID = UnitGUID(unitId)
-    if UnitExists(unitGUID) then
-        return
-    end
-
-    -- Player no longer exists, remove texture
-    self.iconTextures[unitId]:Hide()
+    iconTexture:Hide()
+    iconTexture:SetTexture(nil)
+    iconTexture:ClearAllPoints()
     self.iconTextures[unitId] = nil
 end
 
@@ -239,6 +239,14 @@ end
 -- @param iconTexturePath (string) the icon texture path
 -- @return (void)
 function ClassIndicator:AddTextureToNameplate(unitId, nameplate, iconTexturePath)
+    if self.iconTextures[unitId] then
+        local existingTexture = self.iconTextures[unitId]
+        existingTexture:Hide()
+        existingTexture:SetTexture(nil)
+        existingTexture:ClearAllPoints()
+        self.iconTextures[unitId] = nil
+    end
+
     local iconTexture = nameplate:CreateTexture(nil, "OVERLAY")
     local iconSize = self.db.global.size
     local anchor = self.db.global.position.anchor
