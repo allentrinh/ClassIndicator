@@ -1,10 +1,8 @@
--- Import AceConfig-3.0
 local AceAddon = LibStub("AceAddon-3.0")
 local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 local AceDB = LibStub("AceDB-3.0")
 
--- Constants
 local ADDON_PATH = "Interface\\AddOns\\ClassIndicator\\"
 local CLASS_ICONS_PATH = ADDON_PATH .. "Assets\\ClassIcons\\"
 local ANCHOR_POSITION = {
@@ -14,10 +12,7 @@ local ANCHOR_POSITION = {
     ["LEFT"] = "LEFT",
     ["CENTER"] = "CENTER",
 }
-local FRAME_STRATA = "HIGH"
-local FRAME_LEVEL = 5
 
--- Default configuration values
 local defaults = {
     global = {
         enabled = true,
@@ -31,31 +26,18 @@ local defaults = {
     },
 }
 
--- Create your addon as an AceAddon
 local ClassIndicator = AceAddon:NewAddon("ClassIndicator", "AceConsole-3.0", "AceEvent-3.0")
 
--- Init a look up table
 ClassIndicator.iconTextures = {}
+ClassIndicator.activePlates = {}
 
----
--- Function to initialize the addon
--- @return (void)
 function ClassIndicator:OnInitialize()
-    -- Access the saved variables and initialize the database
     self.db = AceDB:New("ClassIndicatorDB", defaults, true)
-
-    -- Register a slash command to open the options panel
     self:RegisterChatCommand("ci", "ToggleOptionsPanel")
-
-    -- Register the options menu
     self:RegisterMenu()
 end
 
----
--- Registers the menu
--- @return (void)
 function ClassIndicator:RegisterMenu()
-    -- Register the options table
     self.options = {
         name = "Class Indicator",
         type = "group",
@@ -67,7 +49,7 @@ function ClassIndicator:RegisterMenu()
                 get = function() return self.db.global.enabled end,
                 set = function(_, value)
                     self.db.global.enabled = value
-                    self:ToggleAllTextures()
+                    self:RefreshTextures()
                 end,
                 order = 1,
                 width = "full",
@@ -79,7 +61,7 @@ function ClassIndicator:RegisterMenu()
                 get = function() return self.db.global.arenaOnly end,
                 set = function(_, value)
                     self.db.global.arenaOnly = value
-                    self:ToggleAllTextures()
+                    self:RefreshTextures()
                 end,
                 order = 2,
                 width = "full",
@@ -91,7 +73,7 @@ function ClassIndicator:RegisterMenu()
                 min = 8,
                 max = 144,
                 step = 8,
-                get = function() return self.db.global.size; end,
+                get = function() return self.db.global.size end,
                 set = function(_, value)
                     self.db.global.size = value
                     self:RefreshTextures()
@@ -113,7 +95,7 @@ function ClassIndicator:RegisterMenu()
                         min = -100,
                         max = 100,
                         step = 1,
-                        get = function() return self.db.global.position.horizontal; end,
+                        get = function() return self.db.global.position.horizontal end,
                         set = function(_, value)
                             self.db.global.position.horizontal = value
                             self:RefreshTextures()
@@ -127,7 +109,7 @@ function ClassIndicator:RegisterMenu()
                         min = -100,
                         max = 100,
                         step = 1,
-                        get = function() return self.db.global.position.vertical; end,
+                        get = function() return self.db.global.position.vertical end,
                         set = function(_, value)
                             self.db.global.position.vertical = value
                             self:RefreshTextures()
@@ -138,7 +120,7 @@ function ClassIndicator:RegisterMenu()
                         type = "select",
                         name = "Anchor",
                         desc = "Anchor position on unit nameplates",
-                        get = function() return self.db.global.position.anchor; end,
+                        get = function() return self.db.global.position.anchor end,
                         set = function(_, value)
                             self.db.global.position.anchor = value
                             self:RefreshTextures()
@@ -150,217 +132,82 @@ function ClassIndicator:RegisterMenu()
         },
     }
 
-    -- Register the options table with AceConfig
     AceConfig:RegisterOptionsTable("ClassIndicator", self.options)
-
-    -- Create a basic options panel
     self.optionsPanel = AceConfigDialog:AddToBlizOptions("ClassIndicator", "Class Indicator")
 end
 
----
--- Handle the "OnEnable" event
--- @return (void)
 function ClassIndicator:OnEnable()
-    -- Create a frame
-    self.frame = CreateFrame("Frame")
-    self.frame:SetFrameStrata(FRAME_STRATA)
-    self.frame:SetFrameLevel(FRAME_LEVEL)
-    self.frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
-    self.frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
-
-    -- Add a frame event listener
-    self.frame:SetScript("OnEvent", function(_, event, unitId)
-        if event == "NAME_PLATE_UNIT_ADDED" then
-            self:AddTextureToNameplateByUnitId(unitId)
-        elseif event == "NAME_PLATE_UNIT_REMOVED" then
-            self:RemoveTextureFromNameplateByUnitId(unitId)
-        end
-    end)
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "RefreshTextures")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "RefreshTextures")
 end
 
----
--- Adds a texture to a nameplate by unit id
--- @param unitId (string) the unit id
--- @return (void)
-function ClassIndicator:AddTextureToNameplateByUnitId(unitId)
-    if not unitId then
-        return
-    end
-
-    -- Don't add class icon to personal resource display
-    if UnitIsUnit(unitId, "player") then
-        return
-    end
-
-    local unitGUID = UnitGUID(unitId)
-    if not unitGUID then
-        return
-    end
-
-    local isFriend = UnitIsFriend("player", unitId)
-    if not isFriend then
-        return
-    end
-
-    local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
-    if not nameplate then
-        return
-    end
-
-    local localizedClass, englishClass, localizedRace, englishRace, sex, name, realm = GetPlayerInfoByGUID(unitGUID)
-    if englishClass then
-        local iconTexturePath = CLASS_ICONS_PATH .. englishClass .. ".tga"
-        self:AddTextureToNameplate(unitGUID, unitId, nameplate, iconTexturePath)
-    end
-end
-
----
--- Removes a texture from a nameplate by unit id
--- @param unitId (string) the unit id
--- @return (void)
-function ClassIndicator:RemoveTextureFromNameplateByUnitId(unitId)
-    if not unitId then
-        return
-    end
-
-    local unitGUID = UnitGUID(unitId)
-    if not unitGUID then
-        return
-    end
-
-    -- Nothing to remove
-    local iconTexture = self.iconTextures[unitGUID]
-    if iconTexture == nil then
-        return
-    end
-
-    iconTexture:Hide()
-    iconTexture:SetTexture(nil)
-    iconTexture:ClearAllPoints()
-    self.iconTextures[unitGUID] = nil
-end
-
----
--- Adds texture to a nameplate
--- @param unitId (string) the unit id
--- @param nameplate (string) the nameplate id
--- @param iconTexturePath (string) the icon texture path
--- @return (void)
-function ClassIndicator:AddTextureToNameplate(unitGUID, unitId, nameplate, iconTexturePath)
-    if self.iconTextures[unitGUID] then
-        local existingTexture = self.iconTextures[unitGUID]
-        existingTexture:Hide()
-        existingTexture:SetTexture(nil)
-        existingTexture:ClearAllPoints()
-        self.iconTextures[unitGUID] = nil
-    end
-
-    local iconTexture = nameplate:CreateTexture(nil, "OVERLAY")
-    iconTexture.__unitId = unitId
-
-    local db = self.db.global
-    local iconSize = db.size
-    local anchor = db.position.anchor
-    local horizontal = db.position.horizontal
-    local vertical = db.position.vertical
-    local isShown = self:GetIsTextureShown()
-
-    iconTexture:SetTexture(iconTexturePath)
-    iconTexture:SetSize(iconSize, iconSize)
-    iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
-    iconTexture:SetShown(isShown)
-
-    self.iconTextures[unitGUID] = iconTexture
-end
-
----
--- Toggles all textures
--- @return (void)
-function ClassIndicator:ToggleAllTextures()
-    local isShown = self:GetIsTextureShown()
-
+function ClassIndicator:OnDisable()
+    self:UnregisterAllEvents()
     for _, iconTexture in pairs(self.iconTextures) do
+        iconTexture:Hide()
+    end
+end
+
+function ClassIndicator:NAME_PLATE_UNIT_ADDED(event, unitId)
+    if UnitIsUnit(unitId, "player") or not UnitIsFriend("player", unitId) then return end
+
+    local unitGUID = UnitGUID(unitId)
+    local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
+    if not (unitGUID and nameplate) then return end
+
+    local _, englishClass = GetPlayerInfoByGUID(unitGUID)
+    if not englishClass then return end
+
+    if not self.iconTextures[nameplate] then
+        self.iconTextures[nameplate] = nameplate:CreateTexture(nil, "OVERLAY")
+    end
+
+    self.activePlates[unitId] = nameplate
+
+    local tex = self.iconTextures[nameplate]
+    local db = self.db.global
+
+    tex:SetTexture(CLASS_ICONS_PATH .. englishClass .. ".tga")
+    tex:SetSize(db.size, db.size)
+    tex:SetPoint("CENTER", nameplate, db.position.anchor, db.position.horizontal, db.position.vertical)
+    tex:SetShown(self:GetIsTextureShown())
+end
+
+function ClassIndicator:NAME_PLATE_UNIT_REMOVED(event, unitId)
+    local nameplate = self.activePlates[unitId]
+    if nameplate and self.iconTextures[nameplate] then
+        self.iconTextures[nameplate]:Hide()
+    end
+    self.activePlates[unitId] = nil
+end
+
+function ClassIndicator:RefreshTextures()
+    local db = self.db.global
+    local isShown = self:GetIsTextureShown()
+
+    for nameplate, iconTexture in pairs(self.iconTextures) do
+        iconTexture:SetSize(db.size, db.size)
+        iconTexture:SetPoint("CENTER", nameplate, db.position.anchor, db.position.horizontal, db.position.vertical)
         iconTexture:SetShown(isShown)
     end
 end
 
----
--- Destroys all textures
--- @return (void)
-function ClassIndicator:DestroyAllTextures()
-    for unitId, iconTexture in pairs(self.iconTextures) do
-        iconTexture:Hide()
-        iconTexture:SetTexture(nil)
-        iconTexture:ClearAllPoints()
-        self.iconTextures[unitId] = nil
-    end
-end
-
--- Destroys the frame
--- @return (void)
-function ClassIndicator:DestroyFrame()
-    if self.frame == nil then
-        return
-    end
-
-    self.frame:Hide()
-    self.frame = nil
-end
-
----
--- Refreshes textures when an option is changed
--- @return (void)
-function ClassIndicator:RefreshTextures()
-    local db = self.db.global
-
-    for _, iconTexture in pairs(self.iconTextures) do
-        local nameplate = C_NamePlate.GetNamePlateForUnit(iconTexture.__unitId, false)
-        if not nameplate then
-            return
-        end
-
-        local iconSize = db.size
-        local anchor = db.position.anchor
-        local horizontal = db.position.horizontal
-        local vertical = db.position.vertical
-
-        iconTexture:SetSize(iconSize, iconSize)
-        iconTexture:SetPoint("CENTER", nameplate, anchor, horizontal, vertical)
-    end
-end
-
----
--- Handle the "OnDisable" event
--- @return (void)
-function ClassIndicator:OnDisable()
-    self:UnregisterAllEvents()
-    self:DestroyAllTextures()
-    self:DestroyFrame()
-end
-
----
--- Toggle the options panel
--- @return (void)
 function ClassIndicator:ToggleOptionsPanel()
-    InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
-    InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+    if Settings and Settings.OpenToCategory then
+        Settings.OpenToCategory(self.optionsPanel.name)
+    else
+        InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+        InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+    end
 end
 
----
--- Checks if textures should be shown based on enabled and arenaOnly values
--- @return (boolean)
 function ClassIndicator:GetIsTextureShown()
-    local isEnabled = self.db.global.enabled
-    local isArenaOnly = self.db.global.arenaOnly
-    local zoneType = GetZonePVPInfo()
-
-    if not isEnabled then
-        return false
+    if not self.db.global.enabled then return false end
+    if self.db.global.arenaOnly then
+        local _, instanceType = IsInInstance()
+        return instanceType == "arena"
     end
-
-    if isArenaOnly and zoneType ~= "arena" then
-        return false
-    end
-
     return true
 end
