@@ -151,11 +151,17 @@ function ClassIndicator:OnDisable()
 end
 
 function ClassIndicator:NAME_PLATE_UNIT_ADDED(event, unitId)
-    if UnitIsUnit(unitId, "player") or not UnitIsFriend("player", unitId) then return end
+    local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
+    if not nameplate then return end
+
+    if self.iconTextures[nameplate] then
+        self.iconTextures[nameplate]:Hide()
+    end
+
+    if UnitIsUnit(unitId, "player") or not UnitIsFriend("player", unitId) or not UnitIsPlayer(unitId) then return end
 
     local unitGUID = UnitGUID(unitId)
-    local nameplate = C_NamePlate.GetNamePlateForUnit(unitId, false)
-    if not (unitGUID and nameplate) then return end
+    if not unitGUID then return end
 
     local _, englishClass = GetPlayerInfoByGUID(unitGUID)
     if not englishClass then return end
@@ -188,9 +194,16 @@ function ClassIndicator:RefreshTextures()
     local isShown = self:GetIsTextureShown()
 
     for nameplate, iconTexture in pairs(self.iconTextures) do
-        iconTexture:SetSize(db.size, db.size)
-        iconTexture:SetPoint("CENTER", nameplate, db.position.anchor, db.position.horizontal, db.position.vertical)
-        iconTexture:SetShown(isShown)
+        iconTexture:Hide()
+    end
+
+    for unitId, nameplate in pairs(self.activePlates) do
+        local iconTexture = self.iconTextures[nameplate]
+        if iconTexture then
+            iconTexture:SetSize(db.size, db.size)
+            iconTexture:SetPoint("CENTER", nameplate, db.position.anchor, db.position.horizontal, db.position.vertical)
+            iconTexture:SetShown(isShown)
+        end
     end
 end
 
